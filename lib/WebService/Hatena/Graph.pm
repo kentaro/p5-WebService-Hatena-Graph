@@ -10,13 +10,15 @@ use LWP::UserAgent;
 
 our $VERSION = '0.07';
 
+our $GraphHost = 'graph.hatena.ne.jp:80';
+
 sub new {
     my ($class, %args) = @_;
     croak ('Both username and password are required.')
         if (!defined $args{username} || !defined $args{password});
 
     my $ua = LWP::UserAgent->new(agent => __PACKAGE__."/$VERSION");
-       $ua->credentials('graph.hatena.ne.jp:80', '', @args{qw(username password)});
+       $ua->credentials($GraphHost, '', @args{qw(username password)});
 
     return bless { ua => $ua }, $class;
 }
@@ -37,7 +39,7 @@ sub post_data {
     croak ('Graphname parameter must be passed in.')
         if !defined $args{graphname};
 
-    my $res = $self->_post('http://graph.hatena.ne.jp/api/data', %args);
+    my $res = $self->_post('http://'.$GraphHost.'/api/data', %args);
 
     croak (sprintf "%d: %s", $res->code, $res->message)
         if $res->code != 201;
@@ -51,7 +53,7 @@ sub get_data {
     croak ('Graphname parameter must be passed in.')
         if !defined $args{graphname};
 
-    my $res = $self->_get('http://graph.hatena.ne.jp/api/data', (%args, type => 'json'));
+    my $res = $self->_get('http://'.$GraphHost.'/api/data', (%args, type => 'json'));
 
     croak (sprintf "%d: %s", $res->code, $res->message)
         if $res->code != 200;
@@ -65,7 +67,7 @@ sub post_config {
     croak ('Graphname parameter must be passed in.')
         if !defined $args{graphname};
 
-    my $res = $self->_post('http://graph.hatena.ne.jp/api/config', %args);
+    my $res = $self->_post('http://'.$GraphHost.'/api/config', %args);
 
     croak (sprintf "%d: %s", $res->code, $res->message)
         if $res->code != 201;
@@ -79,7 +81,7 @@ sub get_config {
     croak ('Graphname parameter must be passed in.')
         if !defined $args{graphname};
 
-    my $res = $self->_get('http://graph.hatena.ne.jp/api/config', (%args, type => 'json'));
+    my $res = $self->_get('http://'.$GraphHost.'/api/config', (%args, type => 'json'));
 
     croak (sprintf "%d: %s", $res->code, $res->message)
         if $res->code != 200;
