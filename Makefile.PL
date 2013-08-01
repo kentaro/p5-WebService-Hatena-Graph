@@ -1,0 +1,10 @@
+use inc::Module::Install;
+name 'WebService-Hatena-Graph';
+all_from 'lib/WebService/Hatena/Graph.pm';
+license 'MIT';
+requires 'JSON::Any';
+requires 'LWP::Authen::Wsse';
+build_requires 'Test::More';
+use_test_base;
+auto_include;
+WriteAll;
