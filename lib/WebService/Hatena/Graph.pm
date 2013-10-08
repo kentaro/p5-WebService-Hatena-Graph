@@ -27,9 +27,6 @@ sub new {
         croak ('Both username and password are required.')
             if (!defined $args{username} || !defined $args{password});
     }
-    if (defined $args{username}) {
-        carp "Use of WSSE is deprecated";
-    }
 
     my $ua = LWP::UserAgent->new(agent => __PACKAGE__."/$VERSION");
        $ua->credentials($GraphHost, '', @args{qw(username password)});
@@ -193,7 +190,7 @@ WebService::Hatena::Graph - A Perl interface to Hatena::Graph API
       access_token_secret => $token_secret,
 
       username => $username,
-      password => $password,
+      password => $api_password,
   );
 
   # set data to the specified graph
@@ -252,10 +249,10 @@ provides an easy way to communicate with it using its API.
       access_token_secret => $token_secret,
   );
 
-  # WSSE (deprecated)
+  # WSSE
   my $graph = WebService::Hatena::Graph->new(
       username => $username,
-      password => $password,
+      password => $api_password,
   );
 
 This method creates and returns a new WebService::Hatena::Graph
@@ -265,11 +262,9 @@ As arguments to the method, tokens for the OAuth 1.0a application
 (C<consumer_key> and C<consumer_secret>) and tokens for the user
 (C<access_token> and C<access_token_secret>) must be specified.
 
-Alternatively, for backward compatibility, WSSE authorization scheme
-is also supported.  For WSSE, both username and password are
-required. If not passed in, it will croak immediately.  New
-applications should not use WSSE.  Hatena has announced that WSSE
-support will be removed in due course.
+Alternatively, WSSE authorization scheme is also supported.  For WSSE,
+both username and API password are required. If not passed in, it will
+croak immediately.  New applications should not use WSSE.
 
 =back
 
