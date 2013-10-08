@@ -2,7 +2,7 @@ package WebService::Hatena::Graph;
 
 use strict;
 use warnings;
-use Carp qw(croak carp);
+use Carp qw(croak);
 
 use URI;
 use JSON::Any;
