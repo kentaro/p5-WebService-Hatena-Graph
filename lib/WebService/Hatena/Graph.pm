@@ -393,7 +393,7 @@ Kentaro Kuribayashi E<lt>kentaro@cpan.orgE<gt>
 
 Copyright (c) 2006 - 2007, Kentaro Kuribayashi E<lt>kentaro@cpan.orgE<gt>
 
-Copyright 2013 Hatena E<lt>platform@hatena.ne.jpE<gt>.
+Copyright 2013 Hatena E<lt>http://www.hatena.ne.jp/company/E<gt>.
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
