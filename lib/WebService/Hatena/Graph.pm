@@ -8,20 +8,43 @@ use URI;
 use JSON::Any;
 use LWP::UserAgent;
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
+
+our $GraphHost = 'graph.hatena.ne.jp:80';
 
 sub new {
     my ($class, %args) = @_;
-    croak ('Both username and password are required.')
-        if (!defined $args{username} || !defined $args{password});
+    my %param;
+    if (defined $args{access_token}) {
+        @param{qw(
+            access_token access_token_secret
+            consumer_key consumer_secret
+        )} = @args{qw(
+            access_token access_token_secret
+            consumer_key consumer_secret
+        )};
+    } else {
+        croak ('Both username and password are required.')
+            if (!defined $args{username} || !defined $args{password});
+    }
 
     my $ua = LWP::UserAgent->new(agent => __PACKAGE__."/$VERSION");
-       $ua->credentials('graph.hatena.ne.jp:80', '', @args{qw(username password)});
+       $ua->credentials($GraphHost, '', @args{qw(username password)});
+    $param{ua} = $ua;
 
-    return bless { ua => $ua }, $class;
+    return bless \%param, $class;
 }
 
 sub ua { shift->{ua} }
+
+sub use_oauth {
+    return defined $_[0]->access_token;
+}
+
+sub consumer_key { $_[0]->{consumer_key} }
+sub consumer_secret { $_[0]->{consumer_secret} }
+sub access_token { $_[0]->{access_token} }
+sub access_token_secret { $_[0]->{access_token_secret} }
 
 
 # This method remains only for backward compatibility (less or equal
@@ -37,7 +60,7 @@ sub post_data {
     croak ('Graphname parameter must be passed in.')
         if !defined $args{graphname};
 
-    my $res = $self->_post('http://graph.hatena.ne.jp/api/data', %args);
+    my $res = $self->_post('http://'.$GraphHost.'/api/data', %args);
 
     croak (sprintf "%d: %s", $res->code, $res->message)
         if $res->code != 201;
@@ -51,7 +74,7 @@ sub get_data {
     croak ('Graphname parameter must be passed in.')
         if !defined $args{graphname};
 
-    my $res = $self->_get('http://graph.hatena.ne.jp/api/data', (%args, type => 'json'));
+    my $res = $self->_get('http://'.$GraphHost.'/api/data', (%args, type => 'json'));
 
     croak (sprintf "%d: %s", $res->code, $res->message)
         if $res->code != 200;
@@ -65,7 +88,7 @@ sub post_config {
     croak ('Graphname parameter must be passed in.')
         if !defined $args{graphname};
 
-    my $res = $self->_post('http://graph.hatena.ne.jp/api/config', %args);
+    my $res = $self->_post('http://'.$GraphHost.'/api/config', %args);
 
     croak (sprintf "%d: %s", $res->code, $res->message)
         if $res->code != 201;
@@ -79,7 +102,7 @@ sub get_config {
     croak ('Graphname parameter must be passed in.')
         if !defined $args{graphname};
 
-    my $res = $self->_get('http://graph.hatena.ne.jp/api/config', (%args, type => 'json'));
+    my $res = $self->_get('http://'.$GraphHost.'/api/config', (%args, type => 'json'));
 
     croak (sprintf "%d: %s", $res->code, $res->message)
         if $res->code != 200;
@@ -89,14 +112,63 @@ sub get_config {
 
 sub _get {
     my ($self, $url, %params) = @_;
-    my $uri = URI->new($url);
-    $uri->query_form(%params);
+    my $uri;
+
+    if ($self->use_oauth) {
+        require OAuth::Lite::Consumer;
+        require OAuth::Lite::Token;
+        require OAuth::Lite::AuthMethod;
+
+        my $consumer = OAuth::Lite::Consumer->new(
+            consumer_key => $self->consumer_key,
+            consumer_secret => $self->consumer_secret,
+            auth_method => OAuth::Lite::AuthMethod::URL_QUERY(),
+        );
+        my $access_token = OAuth::Lite::Token->new(
+            token => $self->access_token,
+            secret => $self->access_token_secret,
+        );
+
+        $uri = $url . '?' . $consumer->gen_auth_query('GET', $url, $access_token, \%params);
+    } else {
+        $uri = URI->new($url);
+        $uri->query_form(%params);
+    }
+
     return $self->ua->get($uri);
 }
 
 sub _post {
     my ($self, $url, %params) = @_;
-    return $self->ua->post($url, \%params);
+
+    if ($self->use_oauth) {
+        require OAuth::Lite::Consumer;
+        require OAuth::Lite::Token;
+        require OAuth::Lite::AuthMethod;
+
+        my $consumer = OAuth::Lite::Consumer->new(
+            consumer_key => $self->consumer_key,
+            consumer_secret => $self->consumer_secret,
+            auth_method => OAuth::Lite::AuthMethod::POST_BODY(),
+        );
+        my $access_token = OAuth::Lite::Token->new(
+            token => $self->access_token,
+            secret => $self->access_token_secret,
+        );
+        my $oauth_req = $consumer->gen_oauth_request(
+            method => 'POST',
+            url => $url,
+            token => $access_token,
+            params => \%params,
+        );
+        return $self->ua->post(
+            $url,
+            'Content-Type' => 'application/x-www-form-urlencoded',
+            Content => $oauth_req->content,
+        );
+    } else {
+        return $self->ua->post($url, \%params);
+    }
 }
 
 1;
@@ -112,8 +184,13 @@ WebService::Hatena::Graph - A Perl interface to Hatena::Graph API
   use WebService::Hatena::Graph;
 
   my $graph = WebService::Hatena::Graph->new(
+      consumer_key => $consumer_key,
+      consumer_secret => $consumer_secret,
+      access_token => $token,
+      access_token_secret => $token_secret,
+
       username => $username,
-      password => $password,
+      password => $api_password,
   );
 
   # set data to the specified graph
@@ -164,16 +241,30 @@ provides an easy way to communicate with it using its API.
 
 =over 4
 
+  # OAuth
+  my $graph = WebService::Hatena::Graph->new(
+      consumer_key => $consumer_key,
+      consumer_secret => $consumer_secret,
+      access_token => $token,
+      access_token_secret => $token_secret,
+  );
+
+  # WSSE
   my $graph = WebService::Hatena::Graph->new(
       username => $username,
-      password => $password,
+      password => $api_password,
   );
 
 This method creates and returns a new WebService::Hatena::Graph
 object.
 
-Both username and password are required. If not passed in, it will
-croak immediately.
+As arguments to the method, tokens for the OAuth 1.0a application
+(C<consumer_key> and C<consumer_secret>) and tokens for the user
+(C<access_token> and C<access_token_secret>) must be specified.
+
+Alternatively, WSSE authorization scheme is also supported.  For WSSE,
+both username and API password are required. If not passed in, it will
+croak immediately.  New applications should not use WSSE.
 
 =back
 
@@ -286,7 +377,11 @@ L<http://graph.hatena.ne.jp/>
 
 =item * Hatena::Graph API documentation
 
-L<http://d.hatena.ne.jp/keyword/%a4%cf%a4%c6%a4%ca%a5%b0%a5%e9%a5%d5api>
+L<http://developer.hatena.ne.jp/ja/documents/graph/apis/rest>
+
+=item * Hatena OAuth documentation
+
+L<http://developer.hatena.ne.jp/ja/documents/auth/apis/oauth>
 
 =back
 
@@ -297,6 +392,8 @@ Kentaro Kuribayashi E<lt>kentaro@cpan.orgE<gt>
 =head1 COPYRIGHT AND LICENSE (The MIT License)
 
 Copyright (c) 2006 - 2007, Kentaro Kuribayashi E<lt>kentaro@cpan.orgE<gt>
+
+Copyright 2013 Hatena E<lt>http://www.hatena.ne.jp/company/E<gt>.
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
